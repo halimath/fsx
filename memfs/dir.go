@@ -2,6 +2,7 @@ package memfs
 
 import (
 	"errors"
+	"io"
 	"io/fs"
 	"path"
 	"sort"
@@ -126,7 +127,7 @@ func (d *dirHandle) Stat() (fs.FileInfo, error) {
 	return d.stat(d.path), nil
 }
 
-func (d *dirHandle) Read(buf []byte) (int, error) {
+func (d *dirHandle) Read([]byte) (int, error) {
 	return 0, &fs.PathError{
 		Op:   "Read",
 		Path: d.path,
@@ -134,7 +135,15 @@ func (d *dirHandle) Read(buf []byte) (int, error) {
 	}
 }
 
-func (d *dirHandle) Write(p []byte) (n int, err error) {
+func (d *dirHandle) ReadAt([]byte, int64) (int, error) {
+	return 0, &fs.PathError{
+		Op:   "Read",
+		Path: d.path,
+		Err:  ErrIsDirectory,
+	}
+}
+
+func (d *dirHandle) Write([]byte) (int, error) {
 	return 0, &fs.PathError{
 		Op:   "Write",
 		Path: d.path,
@@ -166,6 +175,16 @@ func (d *dirHandle) Chmod(mode fs.FileMode) error {
 	return nil
 }
 
+func (d *dirHandle) Seek(offset int64, whence int) (ret int64, err error) {
+	return 0, &fs.PathError{
+		Op:   "Seek",
+		Path: d.path,
+		Err:  ErrIsDirectory,
+	}
+}
+
+// -- fsx.ReadDirFile
+
 // ReadDir reads the contents of the directory and returns
 // a slice of up to n DirEntry values in directory order.
 // Subsequent calls on the same file will yield further DirEntry values.
@@ -184,6 +203,10 @@ func (d *dirHandle) Chmod(mode fs.FileMode) error {
 func (d *dirHandle) ReadDir(n int) ([]fs.DirEntry, error) {
 	if d.entries == nil {
 		d.initializeEntries()
+	}
+
+	if d.lastEntryIndex >= len(d.entries) {
+		return nil, io.EOF
 	}
 
 	if n <= 0 {

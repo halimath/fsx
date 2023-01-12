@@ -221,3 +221,11 @@ func TestDirHandle_ReadDir(t *testing.T) {
 			}))
 		})
 }
+
+func TestDirHandle_Seek(t *testing.T) {
+	With(t, new(dirFixture)).
+		Run("error", func(t *testing.T, d *dirFixture) {
+			_, err := d.h.Seek(1, fsx.SeekWhenceRelativeOrigin)
+			ExpectThat(t, err).Is(Error(ErrIsDirectory))
+		})
+}

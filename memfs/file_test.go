@@ -10,7 +10,7 @@ import (
 	"github.com/halimath/fsx"
 )
 
-func TestFileHandle(t *testing.T) {
+func TestFileHandle_open(t *testing.T) {
 
 	t.Run("O_RDONLY", func(t *testing.T) {
 		now := time.Now()
@@ -129,7 +129,7 @@ func TestFileHandle(t *testing.T) {
 
 		ExpectThat(t, h.Close()).Is(NoError())
 
-		ExpectThat(t, f.content).Is(DeepEqual([]byte{10, 11, 3, 4}))
+		ExpectThat(t, f.content).Is(DeepEqual([]byte{1, 10, 11, 4}))
 	})
 
 	t.Run("O_RDWR | O_APPEND", func(t *testing.T) {
@@ -159,5 +159,100 @@ func TestFileHandle(t *testing.T) {
 		ExpectThat(t, h.Close()).Is(NoError())
 
 		ExpectThat(t, f.content).Is(DeepEqual([]byte{1, 2, 3, 4, 12, 13}))
+	})
+}
+
+func TestFile_Seek(t *testing.T) {
+
+	t.Run("whence = 0", func(t *testing.T) {
+		f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
+		h := mustOpen(f.open("f", fsx.O_RDWR))
+
+		offset, err := h.Seek(2, fsx.SeekWhenceRelativeOrigin)
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, offset).Is(Equal(int64(2)))
+
+		offset, err = h.Seek(9, fsx.SeekWhenceRelativeOrigin)
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, offset).Is(Equal(int64(len(f.content))))
+	})
+
+	t.Run("whence = 1", func(t *testing.T) {
+		f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
+		h := mustOpen(f.open("f", fsx.O_RDWR))
+
+		offset, err := h.Seek(2, fsx.SeekWhenceRelativeCurrentOffset)
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, offset).Is(Equal(int64(2)))
+
+		offset, err = h.Seek(2, fsx.SeekWhenceRelativeCurrentOffset)
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, offset).Is(Equal(int64(4)))
+
+		offset, err = h.Seek(99, fsx.SeekWhenceRelativeCurrentOffset)
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, offset).Is(Equal(int64(len(f.content))))
+	})
+
+	t.Run("whence = 2", func(t *testing.T) {
+		f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
+		h := mustOpen(f.open("f", fsx.O_RDWR))
+
+		offset, err := h.Seek(2, fsx.SeekWhenceRelativeEnd)
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, offset).Is(Equal(int64(4)))
+
+		offset, err = h.Seek(99, fsx.SeekWhenceRelativeEnd)
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, offset).Is(Equal(int64(0)))
+	})
+
+	t.Run("whence = 4", func(t *testing.T) {
+		f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
+		h := mustOpen(f.open("f", fsx.O_RDWR))
+
+		_, err := h.Seek(2, 4)
+		ExpectThat(t, err).Is(Error(fsx.ErrInvalidWhence))
+	})
+}
+
+func TestFile_ReadAt(t *testing.T) {
+	f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
+
+	t.Run("success", func(t *testing.T) {
+		h := mustOpen(f.open("f", fsx.O_RDONLY))
+		defer h.Close()
+
+		buf := make([]byte, 2)
+
+		l, err := h.ReadAt(buf, 2)
+
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, l).Is(Equal(2))
+		ExpectThat(t, buf).Is(DeepEqual([]byte{2, 3}))
+	})
+
+	t.Run("end_of_file", func(t *testing.T) {
+		h := mustOpen(f.open("f", fsx.O_RDONLY))
+		defer h.Close()
+
+		buf := make([]byte, 2)
+
+		l, err := h.ReadAt(buf, 5)
+
+		ExpectThat(t, err).Is(NoError())
+		ExpectThat(t, l).Is(Equal(1))
+		ExpectThat(t, buf[:l]).Is(DeepEqual([]byte{5}))
+	})
+
+	t.Run("EOF", func(t *testing.T) {
+		h := mustOpen(f.open("f", fsx.O_RDONLY))
+		defer h.Close()
+
+		buf := make([]byte, 2)
+
+		_, err := h.ReadAt(buf, 7)
+
+		ExpectThat(t, err).Is(Error(io.EOF))
 	})
 }

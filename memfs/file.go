@@ -1,6 +1,7 @@
 package memfs
 
 import (
+	"fmt"
 	"io"
 	"io/fs"
 	"sync"
@@ -54,12 +55,10 @@ func (f *file) open(path string, flag int) (fsx.File, error) {
 	}
 
 	handle := &fileHandle{
-		file:        f,
-		path:        path,
-		flag:        flag,
-		buf:         f.content,
-		readCursor:  0,
-		writeCursor: 0,
+		file: f,
+		path: path,
+		flag: flag,
+		buf:  f.content,
 	}
 
 	if flag&fsx.O_WRONLY != 0 {
@@ -75,7 +74,7 @@ func (f *file) open(path string, flag int) (fsx.File, error) {
 
 	if handle.writable {
 		if flag&fsx.O_APPEND != 0 {
-			handle.writeCursor = len(handle.buf)
+			handle.append = true
 		}
 		f.Lock()
 	} else {
@@ -89,11 +88,11 @@ func (f *file) open(path string, flag int) (fsx.File, error) {
 
 type fileHandle struct {
 	*file
-	path                    string
-	readable, writable      bool
-	flag                    int
-	buf                     []byte
-	readCursor, writeCursor int
+	path                       string
+	readable, writable, append bool
+	flag                       int
+	buf                        []byte
+	cursor                     int
 }
 
 func min(a, b int) int {
@@ -116,16 +115,26 @@ func (f *fileHandle) Read(buf []byte) (int, error) {
 		}
 	}
 
-	if f.readCursor >= len(f.buf) {
+	if f.cursor >= len(f.buf) {
 		return 0, io.EOF
 	}
 
-	l := min(len(f.buf[f.readCursor:]), len(buf))
-	copy(buf, f.buf[f.readCursor:])
+	l := min(len(f.buf[f.cursor:]), len(buf))
+	copy(buf, f.buf[f.cursor:])
 
-	f.readCursor += l
+	f.cursor += l
 
-	return l, nil
+	return int(l), nil
+}
+
+func (f *fileHandle) ReadAt(buffer []byte, offset int64) (n int, err error) {
+	if offset >= int64(len(f.buf)) {
+		return 0, io.EOF
+	}
+
+	copy(buffer, f.buf[offset:])
+
+	return min(len(buffer), len(f.buf[offset:])), nil
 }
 
 func (f *fileHandle) Write(p []byte) (n int, err error) {
@@ -137,14 +146,19 @@ func (f *fileHandle) Write(p []byte) (n int, err error) {
 		}
 	}
 
-	overwrite := min(len(p), len(f.buf[f.writeCursor:]))
+	if f.append {
+		f.buf = append(f.buf, p...)
+		return len(p), nil
+	}
 
-	copy(f.buf[f.writeCursor:], p)
-	f.writeCursor += overwrite
+	overwrite := min(len(p), len(f.buf[f.cursor:]))
+
+	copy(f.buf[f.cursor:], p)
+	f.cursor += overwrite
 
 	if overwrite < len(p) {
 		f.buf = append(f.buf, p[overwrite:]...)
-		f.writeCursor = len(f.buf)
+		f.cursor = len(f.buf)
 	}
 
 	return len(p), nil
@@ -177,4 +191,26 @@ func (f *fileHandle) Chmod(mode fs.FileMode) error {
 	f.modTime = time.Now()
 
 	return nil
+}
+
+func (f *fileHandle) Seek(offset int64, whence int) (int64, error) {
+	switch whence {
+	case fsx.SeekWhenceRelativeOrigin:
+		f.cursor = min(len(f.buf), int(offset))
+	case fsx.SeekWhenceRelativeCurrentOffset:
+		f.cursor = min(len(f.buf), f.cursor+int(offset))
+	case fsx.SeekWhenceRelativeEnd:
+		f.cursor = len(f.buf) - int(offset)
+		if f.cursor < 0 {
+			f.cursor = 0
+		}
+	default:
+		return 0, &fs.PathError{
+			Op:   "Seek",
+			Path: f.path,
+			Err:  fmt.Errorf("%w: %d", fsx.ErrInvalidWhence, whence),
+		}
+	}
+
+	return int64(f.cursor), nil
 }
