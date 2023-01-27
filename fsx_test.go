@@ -111,13 +111,13 @@ func TestChmod_plain(t *testing.T) {
 func testChmod[F fixture](t *testing.T, f F) {
 	With(t, f).
 		Run("success", func(t *testing.T, f F) {
-			EnsureThat(t, fsx.WriteFile(f.FS(), "file", []byte("hello, world"), 0644)).Is(NoError())
+			EnsureThat(t, fsx.WriteFile(f.FS(), "file", []byte("hello, world"), 0666)).Is(NoError())
 
-			ExpectThat(t, fsx.Chmod(f.FS(), "file", 0400)).Is(NoError())
+			ExpectThat(t, fsx.Chmod(f.FS(), "file", 0444)).Is(NoError())
 
 			info, err := fs.Stat(f.FS(), "file")
 			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.Mode().Perm()).Is(Equal(fs.FileMode(0400)))
+			ExpectThat(t, info.Mode().Perm()).Is(Equal(fs.FileMode(0444)))
 		})
 }
 
