@@ -27,17 +27,17 @@ type osfs struct {
 // DirFS returns an OS backed filesystem rooted at root. This function works as
 // a counterpart to os.DirFS and behaves equivalent. Notice that any error is
 // delayed until other methods of the returned FS are called.
-func DirFS(root string) fsx.FS {
+func DirFS(root string) fsx.LinkFS {
 	return &osfs{FS: os.DirFS(root), dir: root}
 }
 
-// join resolves name - which is a forward slash separated path - to a path
+// toOSPath resolves name - which is a forward slash separated path - to a path
 // rooted inside ofs. The result is
 //
 //   - an absolute path
 //   - converted to the underlying os' separator (i.e. backslashes on windows)
 //   - converted into an absolute path
-func (ofs *osfs) join(name string) (string, error) {
+func (ofs *osfs) toOSPath(name string) (string, error) {
 	if ofs.dir == "" {
 		return "", ErrInvalidRoot
 	}
@@ -54,8 +54,25 @@ func (ofs *osfs) join(name string) (string, error) {
 	return ofs.dir + string(os.PathSeparator) + name, nil
 }
 
+// toFSPath is the inverse operation to ofs.toOSPath. It takes name as a full qualified
+// path name and removes ofs' root returning a fs-local name with forward
+// slashes.
+func (ofs *osfs) toFSPath(name string) (string, error) {
+	name, err := filepath.Abs(name)
+	if err != nil {
+		return "", err
+	}
+
+	rel, err := filepath.Rel(ofs.dir, name)
+	if err != nil {
+		return "", err
+	}
+
+	return filepath.ToSlash(rel), nil
+}
+
 func (ofs *osfs) OpenFile(name string, flag int, perm fs.FileMode) (fsx.File, error) {
-	n, err := ofs.join(name)
+	n, err := ofs.toOSPath(name)
 	if err != nil {
 		return nil, err
 	}
@@ -69,7 +86,7 @@ func (ofs *osfs) OpenFile(name string, flag int, perm fs.FileMode) (fsx.File, er
 }
 
 func (ofs *osfs) Mkdir(name string, perm fs.FileMode) error {
-	n, err := ofs.join(name)
+	n, err := ofs.toOSPath(name)
 	if err != nil {
 		return err
 	}
@@ -78,7 +95,7 @@ func (ofs *osfs) Mkdir(name string, perm fs.FileMode) error {
 }
 
 func (ofs *osfs) Remove(name string) error {
-	n, err := ofs.join(name)
+	n, err := ofs.toOSPath(name)
 	if err != nil {
 		return err
 	}
@@ -87,12 +104,12 @@ func (ofs *osfs) Remove(name string) error {
 }
 
 func (ofs *osfs) Rename(oldpath, newpath string) error {
-	o, err := ofs.join(oldpath)
+	o, err := ofs.toOSPath(oldpath)
 	if err != nil {
 		return err
 	}
 
-	n, err := ofs.join(newpath)
+	n, err := ofs.toOSPath(newpath)
 	if err != nil {
 		return err
 	}
@@ -104,6 +121,50 @@ func (ofs *osfs) SameFile(fi1, fi2 fs.FileInfo) bool {
 	return os.SameFile(fi1, fi2)
 }
 
+func (ofs *osfs) Readlink(name string) (string, error) {
+	n, err := ofs.toOSPath(name)
+	if err != nil {
+		return "", err
+	}
+
+	l, err := os.Readlink(n)
+	if err != nil {
+		return l, err
+	}
+
+	return ofs.toFSPath(l)
+}
+
+func (ofs *osfs) Link(oldname, newname string) error {
+	o, err := ofs.toOSPath(oldname)
+	if err != nil {
+		return err
+	}
+
+	n, err := ofs.toOSPath(newname)
+	if err != nil {
+		return err
+	}
+
+	return os.Link(o, n)
+}
+
+func (ofs *osfs) Symlink(oldname, newname string) error {
+	o, err := ofs.toOSPath(oldname)
+	if err != nil {
+		return err
+	}
+
+	n, err := ofs.toOSPath(newname)
+	if err != nil {
+		return err
+	}
+
+	return os.Symlink(o, n)
+}
+
+// --
+
 type osfile struct {
 	*os.File
 }
@@ -111,7 +172,7 @@ type osfile struct {
 // -- fs.ReadFileFS
 
 func (ofs *osfs) ReadFile(name string) ([]byte, error) {
-	n, err := ofs.join(name)
+	n, err := ofs.toOSPath(name)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +184,7 @@ func (ofs *osfs) ReadFile(name string) ([]byte, error) {
 // -- fsx.WriteFileFS
 
 func (ofs *osfs) WriteFile(name string, data []byte, perm fs.FileMode) error {
-	n, err := ofs.join(name)
+	n, err := ofs.toOSPath(name)
 	if err != nil {
 		return err
 	}
@@ -134,7 +195,7 @@ func (ofs *osfs) WriteFile(name string, data []byte, perm fs.FileMode) error {
 // -- fsx.ChmodFS
 
 func (ofs *osfs) Chmod(name string, mode fs.FileMode) error {
-	n, err := ofs.join(name)
+	n, err := ofs.toOSPath(name)
 	if err != nil {
 		return err
 	}
@@ -145,7 +206,7 @@ func (ofs *osfs) Chmod(name string, mode fs.FileMode) error {
 // -- fsx.RemoveAllFS
 
 func (ofs *osfs) RemoveAll(path string) error {
-	p, err := ofs.join(path)
+	p, err := ofs.toOSPath(path)
 	if err != nil {
 		return err
 	}
@@ -156,7 +217,7 @@ func (ofs *osfs) RemoveAll(path string) error {
 // -- fsx.MkdirAllFS
 
 func (ofs *osfs) MkdirAll(path string, perm fs.FileMode) error {
-	p, err := ofs.join(path)
+	p, err := ofs.toOSPath(path)
 	if err != nil {
 		return err
 	}

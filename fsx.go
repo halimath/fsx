@@ -127,6 +127,29 @@ type ReadDirFile interface {
 	// func (f *File) Readdirnames(n int) (names []string, err error)
 }
 
+// --
+
+// LinkFS defines an interface for filesystem implementations that support lins
+// (both hardlinks and symlinks).
+//
+// The functions defined by LinkFS are modeled after the link functions provided
+// by package os.
+type LinkFS interface {
+	FS
+
+	// Readlink returns the target of link name or an error.
+	Readlink(name string) (string, error)
+
+	// Link creates a hardlink newname pointing to oldname.
+	Link(oldname, newname string) error
+
+	// Symlink creates a symbolic link newname pointing to oldname. The behavior
+	// when creating a symbolic link to a non-existing target is not specified.
+	Symlink(oldname, newname string) error
+}
+
+// --
+
 // Create creates a file named name under fsys and returns a handle to that
 // file or an error. It works in analogy to os.Create but does so inside a FS.
 func Create(fsys FS, name string) (File, error) {

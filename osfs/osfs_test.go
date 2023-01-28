@@ -12,7 +12,7 @@ import (
 
 type osfsFixture struct {
 	TempDirFixture
-	fs fsx.FS
+	fs fsx.LinkFS
 }
 
 func (f *osfsFixture) BeforeAll(t *testing.T) error {
@@ -164,5 +164,46 @@ func TestOSFS_MkdirAll(t *testing.T) {
 			info, err := fs.Stat(fix.fs, "create/all/paths")
 			ExpectThat(t, err).Is(NoError())
 			ExpectThat(t, info.IsDir()).Is(Equal(true))
+		})
+}
+
+func TestOSFS_Symlink(t *testing.T) {
+	With(t, new(osfsFixture)).
+		Run("success", func(t *testing.T, fix *osfsFixture) {
+			err := fsx.WriteFile(fix.fs, "f", []byte("hello world"), 0666)
+			EnsureThat(t, err).Is(NoError())
+
+			EnsureThat(t, fix.fs.Symlink("f", "l")).Is(NoError())
+
+			got, err := fs.ReadFile(fix.fs, "l")
+			ExpectThat(t, err).Is(NoError())
+			ExpectThat(t, string(got)).Is(Equal("hello world"))
+		})
+}
+
+func TestOSFS_Link(t *testing.T) {
+	With(t, new(osfsFixture)).
+		Run("success", func(t *testing.T, fix *osfsFixture) {
+			err := fsx.WriteFile(fix.fs, "f", []byte("hello world"), 0666)
+			EnsureThat(t, err).Is(NoError())
+
+			EnsureThat(t, fix.fs.Link("f", "l")).Is(NoError())
+
+			got, err := fs.ReadFile(fix.fs, "l")
+			ExpectThat(t, err).Is(NoError())
+			ExpectThat(t, string(got)).Is(Equal("hello world"))
+		})
+}
+
+func TestOSFS_Readlink(t *testing.T) {
+	With(t, new(osfsFixture)).
+		Run("symlink", func(t *testing.T, fix *osfsFixture) {
+			err := fsx.WriteFile(fix.fs, "f", []byte("hello world"), 0666)
+			EnsureThat(t, err).Is(NoError())
+			EnsureThat(t, fix.fs.Symlink("f", "l")).Is(NoError())
+
+			got, err := fix.fs.Readlink("l")
+			ExpectThat(t, err).Is(NoError())
+			ExpectThat(t, got).Is(Equal("f"))
 		})
 }
