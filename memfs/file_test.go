@@ -16,13 +16,12 @@ func TestFileHandle_open(t *testing.T) {
 		now := time.Now()
 
 		f := file{
-			name:    "test",
 			modTime: now,
 			perm:    0644,
 			content: []byte{1, 2, 3, 4},
 		}
 
-		h, err := f.open("test", fsx.O_RDONLY)
+		h, err := f.open(nil, "test", fsx.O_RDONLY)
 		ExpectThat(t, err).Is(NoError())
 
 		info, err := h.Stat()
@@ -30,7 +29,6 @@ func TestFileHandle_open(t *testing.T) {
 		ExpectThat(t, err).Is(NoError())
 		ExpectThat(t, info).Is(DeepEqual(&fileInfo{
 			path:    "test",
-			name:    "test",
 			size:    4,
 			mode:    0644,
 			modTime: now,
@@ -65,13 +63,12 @@ func TestFileHandle_open(t *testing.T) {
 		now := time.Now()
 
 		f := file{
-			name:    "test",
 			modTime: now,
 			perm:    0644,
 			content: []byte{1, 2, 3, 4},
 		}
 
-		h, err := f.open("test", fsx.O_WRONLY)
+		h, err := f.open(nil, "test", fsx.O_WRONLY)
 		ExpectThat(t, err).Is(NoError())
 
 		info, err := h.Stat()
@@ -79,7 +76,6 @@ func TestFileHandle_open(t *testing.T) {
 		ExpectThat(t, err).Is(NoError())
 		ExpectThat(t, info).Is(DeepEqual(&fileInfo{
 			path:    "test",
-			name:    "test",
 			size:    4,
 			mode:    0644,
 			modTime: now,
@@ -107,13 +103,12 @@ func TestFileHandle_open(t *testing.T) {
 		now := time.Now()
 
 		f := file{
-			name:    "test",
 			modTime: now,
 			perm:    0644,
 			content: []byte{1, 2, 3, 4},
 		}
 
-		h, err := f.open("test", fsx.O_RDWR)
+		h, err := f.open(nil, "test", fsx.O_RDWR)
 		ExpectThat(t, err).Is(NoError())
 
 		buf := make([]byte, 1)
@@ -136,13 +131,12 @@ func TestFileHandle_open(t *testing.T) {
 		now := time.Now()
 
 		f := file{
-			name:    "test",
 			modTime: now,
 			perm:    0644,
 			content: []byte{1, 2, 3, 4},
 		}
 
-		h, err := f.open("test", fsx.O_RDWR|fsx.O_APPEND)
+		h, err := f.open(nil, "test", fsx.O_RDWR|fsx.O_APPEND)
 		ExpectThat(t, err).Is(NoError())
 
 		buf := make([]byte, 1)
@@ -165,8 +159,8 @@ func TestFileHandle_open(t *testing.T) {
 func TestFile_Seek(t *testing.T) {
 
 	t.Run("whence = 0", func(t *testing.T) {
-		f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
-		h := mustOpen(f.open("f", fsx.O_RDWR))
+		f := newFile(0644, []byte{0, 1, 2, 3, 4, 5})
+		h := must(f.open(nil, "f", fsx.O_RDWR))
 
 		offset, err := h.Seek(2, fsx.SeekWhenceRelativeOrigin)
 		ExpectThat(t, err).Is(NoError())
@@ -178,8 +172,8 @@ func TestFile_Seek(t *testing.T) {
 	})
 
 	t.Run("whence = 1", func(t *testing.T) {
-		f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
-		h := mustOpen(f.open("f", fsx.O_RDWR))
+		f := newFile(0644, []byte{0, 1, 2, 3, 4, 5})
+		h := must(f.open(nil, "f", fsx.O_RDWR))
 
 		offset, err := h.Seek(2, fsx.SeekWhenceRelativeCurrentOffset)
 		ExpectThat(t, err).Is(NoError())
@@ -195,8 +189,8 @@ func TestFile_Seek(t *testing.T) {
 	})
 
 	t.Run("whence = 2", func(t *testing.T) {
-		f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
-		h := mustOpen(f.open("f", fsx.O_RDWR))
+		f := newFile(0644, []byte{0, 1, 2, 3, 4, 5})
+		h := must(f.open(nil, "f", fsx.O_RDWR))
 
 		offset, err := h.Seek(2, fsx.SeekWhenceRelativeEnd)
 		ExpectThat(t, err).Is(NoError())
@@ -208,8 +202,8 @@ func TestFile_Seek(t *testing.T) {
 	})
 
 	t.Run("whence = 4", func(t *testing.T) {
-		f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
-		h := mustOpen(f.open("f", fsx.O_RDWR))
+		f := newFile(0644, []byte{0, 1, 2, 3, 4, 5})
+		h := must(f.open(nil, "f", fsx.O_RDWR))
 
 		_, err := h.Seek(2, 4)
 		ExpectThat(t, err).Is(Error(fsx.ErrInvalidWhence))
@@ -217,10 +211,10 @@ func TestFile_Seek(t *testing.T) {
 }
 
 func TestFile_ReadAt(t *testing.T) {
-	f := newFile("f", 0644, []byte{0, 1, 2, 3, 4, 5})
+	f := newFile(0644, []byte{0, 1, 2, 3, 4, 5})
 
 	t.Run("success", func(t *testing.T) {
-		h := mustOpen(f.open("f", fsx.O_RDONLY))
+		h := must(f.open(nil, "f", fsx.O_RDONLY))
 		defer h.Close()
 
 		buf := make([]byte, 2)
@@ -233,7 +227,7 @@ func TestFile_ReadAt(t *testing.T) {
 	})
 
 	t.Run("end_of_file", func(t *testing.T) {
-		h := mustOpen(f.open("f", fsx.O_RDONLY))
+		h := must(f.open(nil, "f", fsx.O_RDONLY))
 		defer h.Close()
 
 		buf := make([]byte, 2)
@@ -246,7 +240,7 @@ func TestFile_ReadAt(t *testing.T) {
 	})
 
 	t.Run("EOF", func(t *testing.T) {
-		h := mustOpen(f.open("f", fsx.O_RDONLY))
+		h := must(f.open(nil, "f", fsx.O_RDONLY))
 		defer h.Close()
 
 		buf := make([]byte, 2)

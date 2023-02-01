@@ -50,12 +50,12 @@ func TestDir_find(t *testing.T) {
 	ExpectThat(t, d.find("some/nested/file/subfile")).Is(Nil())
 }
 
-func mustOpen(f fsx.File, err error) fsx.File {
+func must[T any](t T, err error) T {
 	if err != nil {
 		panic(err)
 	}
 
-	return f
+	return t
 }
 
 type dirFixture struct {
@@ -64,66 +64,65 @@ type dirFixture struct {
 }
 
 func (d *dirFixture) BeforeEach(t *testing.T) error {
-	d.d = newDir("test", 0777)
+	d.d = newDir(0777)
 	d.d.children = map[string]entry{
-		"d1": newDir("d1", 0777),
-		"d2": newDir("d2", 0777),
-		"f1": newFile("f1", 0644, nil),
-		"f2": newFile("f2", 0644, nil),
+		"d1": newDir(0777),
+		"d2": newDir(0777),
+		"f1": newFile(0644, nil),
+		"f2": newFile(0644, nil),
 	}
 
-	d.h = mustOpen(d.d.open("test", fsx.O_RDONLY)).(*dirHandle)
+	d.h = must(d.d.open(nil, "test", fsx.O_RDONLY)).(*dirHandle)
 
 	return nil
 }
 
 func TestDirHandle_open(t *testing.T) {
 	t.Run("O_RDONLY success", func(t *testing.T) {
-		d := newDir("dir", 0400)
-		_, err := d.open("dir", fsx.O_RDONLY)
+		d := newDir(0400)
+		_, err := d.open(nil, "dir", fsx.O_RDONLY)
 		ExpectThat(t, err).Is(NoError())
 	})
 
 	t.Run("O_RDONLY failure", func(t *testing.T) {
-		d := newDir("dir", 0000)
-		_, err := d.open("dir", fsx.O_RDONLY)
+		d := newDir(0000)
+		_, err := d.open(nil, "dir", fsx.O_RDONLY)
 		ExpectThat(t, err).Is(Error(fs.ErrPermission))
 	})
 
 	t.Run("O_WRONLY success", func(t *testing.T) {
-		d := newDir("dir", 0600)
-		_, err := d.open("dir", fsx.O_WRONLY)
+		d := newDir(0600)
+		_, err := d.open(nil, "dir", fsx.O_WRONLY)
 		ExpectThat(t, err).Is(NoError())
 	})
 
 	t.Run("O_WRONLY failure", func(t *testing.T) {
-		d := newDir("dir", 0400)
-		_, err := d.open("dir", fsx.O_WRONLY)
+		d := newDir(0400)
+		_, err := d.open(nil, "dir", fsx.O_WRONLY)
 		ExpectThat(t, err).Is(Error(fs.ErrPermission))
 	})
 
 	t.Run("O_RDWR success", func(t *testing.T) {
-		d := newDir("dir", 0600)
-		_, err := d.open("dir", fsx.O_RDWR)
+		d := newDir(0600)
+		_, err := d.open(nil, "dir", fsx.O_RDWR)
 		ExpectThat(t, err).Is(NoError())
 	})
 
 	t.Run("O_RDWR failure", func(t *testing.T) {
-		d := newDir("dir", 0000)
-		_, err := d.open("dir", fsx.O_RDWR)
+		d := newDir(0000)
+		_, err := d.open(nil, "dir", fsx.O_RDWR)
 		ExpectThat(t, err).Is(Error(fs.ErrPermission))
 	})
 }
 
 func TestDirHandle_Stat(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		d := newDir("dir", 0777)
-		h := mustOpen(d.open("dir", fsx.O_RDONLY))
+		d := newDir(0777)
+		h := must(d.open(nil, "dir", fsx.O_RDONLY))
 		info, err := h.Stat()
 		ExpectThat(t, err).Is(NoError())
 		ExpectThat(t, info).Is(DeepEqual(&fileInfo{
 			path:    "dir",
-			name:    "dir",
 			size:    0,
 			mode:    fs.ModeDir | 0777,
 			modTime: d.modTime,
@@ -133,8 +132,8 @@ func TestDirHandle_Stat(t *testing.T) {
 
 func TestDirHandle_Read(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		d := newDir("dir", 0777)
-		h := mustOpen(d.open("dir", fsx.O_RDONLY))
+		d := newDir(0777)
+		h := must(d.open(nil, "dir", fsx.O_RDONLY))
 		buf := make([]byte, 0)
 		_, err := h.Read(buf)
 
@@ -144,8 +143,8 @@ func TestDirHandle_Read(t *testing.T) {
 
 func TestDirHandle_Write(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
-		d := newDir("dir", 0777)
-		h := mustOpen(d.open("dir", fsx.O_RDONLY))
+		d := newDir(0777)
+		h := must(d.open(nil, "dir", fsx.O_RDONLY))
 		buf := make([]byte, 0)
 		_, err := h.Write(buf)
 
@@ -155,14 +154,14 @@ func TestDirHandle_Write(t *testing.T) {
 
 func TestDirHandle_Chmod(t *testing.T) {
 	t.Run("O_RDONLY", func(t *testing.T) {
-		d := newDir("dir", 0777)
-		h := mustOpen(d.open("dir", fsx.O_RDONLY))
+		d := newDir(0777)
+		h := must(d.open(nil, "dir", fsx.O_RDONLY))
 		ExpectThat(t, h.Chmod(0700)).Is(Error(fs.ErrPermission))
 	})
 
 	t.Run("O_WRONLY", func(t *testing.T) {
-		d := newDir("dir", 0777)
-		h := mustOpen(d.open("dir", fsx.O_WRONLY))
+		d := newDir(0777)
+		h := must(d.open(nil, "dir", fsx.O_WRONLY))
 		ExpectThat(t, h.Chmod(0700)).Is(NoError())
 		ExpectThat(t, h.Close()).Is(NoError())
 		ExpectThat(t, d.perm).Is(Equal(fs.FileMode(0700)))
@@ -177,19 +176,19 @@ func TestDirHandle_ReadDir(t *testing.T) {
 			ExpectThat(t, e).Is(DeepEqual([]fs.DirEntry{
 				&dirEntry{
 					name: "d1",
-					info: d.d.children["d1"].stat("test/d1"),
+					info: must(d.d.children["d1"].stat(nil, "test/d1")),
 				},
 				&dirEntry{
 					name: "d2",
-					info: d.d.children["d2"].stat("test/d2"),
+					info: must(d.d.children["d2"].stat(nil, "test/d2")),
 				},
 				&dirEntry{
 					name: "f1",
-					info: d.d.children["f1"].stat("test/f1"),
+					info: must(d.d.children["f1"].stat(nil, "test/f1")),
 				},
 				&dirEntry{
 					name: "f2",
-					info: d.d.children["f2"].stat("test/f2"),
+					info: must(d.d.children["f2"].stat(nil, "test/f2")),
 				},
 			}))
 		}).
@@ -199,15 +198,15 @@ func TestDirHandle_ReadDir(t *testing.T) {
 			ExpectThat(t, e).Is(DeepEqual([]fs.DirEntry{
 				&dirEntry{
 					name: "d1",
-					info: d.d.children["d1"].stat("test/d1"),
+					info: must(d.d.children["d1"].stat(nil, "test/d1")),
 				},
 				&dirEntry{
 					name: "d2",
-					info: d.d.children["d2"].stat("test/d2"),
+					info: must(d.d.children["d2"].stat(nil, "test/d2")),
 				},
 				&dirEntry{
 					name: "f1",
-					info: d.d.children["f1"].stat("test/f1"),
+					info: must(d.d.children["f1"].stat(nil, "test/f1")),
 				},
 			}))
 
@@ -216,7 +215,7 @@ func TestDirHandle_ReadDir(t *testing.T) {
 			ExpectThat(t, e).Is(DeepEqual([]fs.DirEntry{
 				&dirEntry{
 					name: "f2",
-					info: d.d.children["f2"].stat("test/f2"),
+					info: must(d.d.children["f2"].stat(nil, "test/f2")),
 				},
 			}))
 		})

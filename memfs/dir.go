@@ -16,25 +16,21 @@ import (
 type dir struct {
 	sync.RWMutex
 
-	name     string
 	modTime  time.Time
 	perm     fs.FileMode
 	children map[string]entry
 }
 
-func (d *dir) stat(path string) fs.FileInfo {
+func (d *dir) stat(fsys *memfs, path string) (fs.FileInfo, error) {
 	return &fileInfo{
 		path:    path,
-		name:    d.name,
 		size:    0,
 		mode:    fs.ModeDir | d.perm,
 		modTime: d.modTime,
-	}
+	}, nil
 }
 
-func (d *dir) setName(name string) { d.name = name }
-
-func (d *dir) open(path string, flag int) (fsx.File, error) {
+func (d *dir) open(fsys *memfs, path string, flag int) (fsx.File, error) {
 	var wantPerm fs.FileMode = 0400
 	if flag&fsx.O_WRONLY != 0 || flag&fsx.O_RDWR != 0 {
 		wantPerm |= 0200
@@ -50,6 +46,7 @@ func (d *dir) open(path string, flag int) (fsx.File, error) {
 
 	handle := &dirHandle{
 		dir:      d,
+		fsys:     fsys,
 		path:     path,
 		writable: flag&fsx.O_WRONLY != 0 || flag&fsx.O_RDWR != 0,
 	}
@@ -102,9 +99,8 @@ func (d *dir) find(name string) entry {
 	return subDir.find(remainder)
 }
 
-func newDir(name string, perm fs.FileMode) *dir {
+func newDir(perm fs.FileMode) *dir {
 	return &dir{
-		name:     name,
 		modTime:  time.Now(),
 		perm:     perm,
 		children: make(map[string]entry),
@@ -117,6 +113,7 @@ var ErrIsDirectory = errors.New("is a directory")
 
 type dirHandle struct {
 	*dir
+	fsys           *memfs
 	path           string
 	entries        []fs.DirEntry
 	lastEntryIndex int
@@ -124,7 +121,7 @@ type dirHandle struct {
 }
 
 func (d *dirHandle) Stat() (fs.FileInfo, error) {
-	return d.stat(d.path), nil
+	return d.stat(d.fsys, d.path)
 }
 
 func (d *dirHandle) Read([]byte) (int, error) {
@@ -202,7 +199,9 @@ func (d *dirHandle) Seek(offset int64, whence int) (ret int64, err error) {
 // ReadDir returns the DirEntry list read until that point and a non-nil error.
 func (d *dirHandle) ReadDir(n int) ([]fs.DirEntry, error) {
 	if d.entries == nil {
-		d.initializeEntries()
+		if err := d.initializeEntries(); err != nil {
+			return nil, err
+		}
 	}
 
 	if d.lastEntryIndex >= len(d.entries) {
@@ -227,13 +226,18 @@ func (d *dirHandle) ReadDir(n int) ([]fs.DirEntry, error) {
 	return ret, nil
 }
 
-func (d *dirHandle) initializeEntries() {
+func (d *dirHandle) initializeEntries() error {
 	entries := make(dirEntries, 0, len(d.children))
 
 	for name, e := range d.children {
+		info, err := e.stat(d.fsys, path.Join(d.path, name))
+		if err != nil {
+			return err
+		}
+
 		entries = append(entries, dirEntry{
 			name: name,
-			info: e.stat(path.Join(d.path, name)),
+			info: info,
 		})
 	}
 
@@ -244,6 +248,8 @@ func (d *dirHandle) initializeEntries() {
 	for i := range entries {
 		d.entries[i] = &entries[i]
 	}
+
+	return nil
 }
 
 // --

@@ -10,13 +10,12 @@ import (
 
 type fileInfo struct {
 	path    string
-	name    string
 	size    int64
 	mode    fs.FileMode
 	modTime time.Time
 }
 
-func (i *fileInfo) Name() string       { return i.name }
+func (i *fileInfo) Name() string       { return path.Base(i.path) }
 func (i *fileInfo) Size() int64        { return i.size }
 func (i *fileInfo) Mode() fs.FileMode  { return i.mode }
 func (i *fileInfo) ModTime() time.Time { return i.modTime }
@@ -31,10 +30,8 @@ type entry interface {
 	RLock()
 	RUnlock()
 
-	stat(path string) fs.FileInfo
-	open(path string, flag int) (fsx.File, error)
-
-	setName(name string)
+	stat(fsys *memfs, path string) (fs.FileInfo, error)
+	open(fsys *memfs, path string, flag int) (fsx.File, error)
 }
 
 // --
@@ -54,9 +51,10 @@ type memfs struct {
 	root *dir
 }
 
-func New() fsx.FS {
+// New creates a new, empty in-memory filesystem.
+func New() fsx.LinkFS {
 	return &memfs{
-		root: newDir("", 0777),
+		root: newDir(0777),
 	}
 }
 
@@ -81,7 +79,7 @@ func (fsys *memfs) Open(name string) (fs.File, error) {
 		}
 	}
 
-	return e.open(name, fsx.O_RDONLY)
+	return e.open(fsys, name, fsx.O_RDONLY)
 }
 
 // -- fsx.FS
@@ -137,11 +135,11 @@ func (fsys *memfs) OpenFile(filePath string, flag int, perm fs.FileMode) (fsx.Fi
 			}
 		}
 
-		e = newFile(name, perm, nil)
+		e = newFile(perm, nil)
 		parentDir.children[name] = e
 	}
 
-	return e.open(filePath, flag)
+	return e.open(fsys, filePath, flag)
 }
 
 // Mkdir creates a directory named name with permission perm. Mkdir returns
@@ -170,7 +168,7 @@ func (fsys *memfs) Mkdir(name string, perm fs.FileMode) error {
 	dir.Lock()
 	defer dir.Unlock()
 
-	dir.children[name] = newDir(name, perm)
+	dir.children[name] = newDir(perm)
 
 	return nil
 }
@@ -277,7 +275,6 @@ func (fsys *memfs) Rename(oldpath, newpath string) error {
 
 	delete(oldDir.children, oldname)
 	newDir.children[newname] = toRename
-	toRename.setName(newname)
 
 	return nil
 }
@@ -296,6 +293,104 @@ func (fsys *memfs) SameFile(fi1, fi2 fs.FileInfo) bool {
 	}
 
 	return fix1.path == fix2.path
+}
+
+// -- fsx.LinkFS
+
+// Readlink returns the target of link name or an error.
+func (fsys *memfs) Readlink(name string) (string, error) {
+	e := fsys.root.find(name)
+	if e == nil {
+		return "", &fs.PathError{
+			Op:   "Readlink",
+			Path: name,
+			Err:  fs.ErrNotExist,
+		}
+	}
+
+	sl, ok := e.(*symlink)
+	if !ok {
+		return "", &fs.PathError{
+			Op:   "Readlink",
+			Path: name,
+			Err:  fs.ErrInvalid,
+		}
+	}
+
+	return sl.targetPath, nil
+}
+
+// Link creates a hardlink newname pointing to oldname.
+func (fsys *memfs) Link(oldname, newname string) error {
+	e := fsys.root.find(oldname)
+	if e == nil {
+		return &fs.PathError{
+			Op:   "Link",
+			Path: oldname,
+			Err:  fs.ErrNotExist,
+		}
+	}
+
+	dirname, linkname := split(newname)
+	de := fsys.root.find(dirname)
+	if de == nil {
+		return &fs.PathError{
+			Op:   "Link",
+			Path: dirname,
+			Err:  fs.ErrNotExist,
+		}
+	}
+
+	d, ok := de.(*dir)
+	if !ok {
+		return &fs.PathError{
+			Op:   "Link",
+			Path: dirname,
+			Err:  fs.ErrInvalid,
+		}
+	}
+
+	d.children[linkname] = e
+
+	return nil
+}
+
+// Symlink creates a symbolic link newname pointing to oldname. The behavior
+// when creating a symbolic link to a non-existing target is not specified.
+func (fsys *memfs) Symlink(oldname, newname string) error {
+	e := fsys.root.find(oldname)
+	if e == nil {
+		return &fs.PathError{
+			Op:   "Symlink",
+			Path: oldname,
+			Err:  fs.ErrNotExist,
+		}
+	}
+
+	dirname, linkname := split(newname)
+	de := fsys.root.find(dirname)
+	if de == nil {
+		return &fs.PathError{
+			Op:   "Symlink",
+			Path: dirname,
+			Err:  fs.ErrNotExist,
+		}
+	}
+
+	d, ok := de.(*dir)
+	if !ok {
+		return &fs.PathError{
+			Op:   "Symlink",
+			Path: dirname,
+			Err:  fs.ErrInvalid,
+		}
+	}
+
+	d.children[linkname] = &symlink{
+		targetPath: oldname,
+	}
+
+	return nil
 }
 
 // -- fsx.RemoveAllFS
@@ -322,5 +417,5 @@ func (fsys *memfs) Stat(path string) (fs.FileInfo, error) {
 	e.RLock()
 	defer e.RUnlock()
 
-	return e.stat(path), nil
+	return e.stat(fsys, path)
 }

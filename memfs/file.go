@@ -13,34 +13,29 @@ import (
 type file struct {
 	sync.RWMutex
 
-	name    string
 	modTime time.Time
 	perm    fs.FileMode
 	content []byte
 }
 
-func newFile(name string, perm fs.FileMode, content []byte) *file {
+func newFile(perm fs.FileMode, content []byte) *file {
 	return &file{
-		name:    name,
 		modTime: time.Now(),
 		perm:    perm,
 		content: content,
 	}
 }
 
-func (f *file) stat(path string) fs.FileInfo {
+func (f *file) stat(fsys *memfs, path string) (fs.FileInfo, error) {
 	return &fileInfo{
 		path:    path,
-		name:    f.name,
 		size:    int64(len(f.content)),
 		mode:    f.perm,
 		modTime: f.modTime,
-	}
+	}, nil
 }
 
-func (f *file) setName(name string) { f.name = name }
-
-func (f *file) open(path string, flag int) (fsx.File, error) {
+func (f *file) open(fsys *memfs, path string, flag int) (fsx.File, error) {
 	var wantPerm fs.FileMode = 0400
 	if flag&fsx.O_WRONLY != 0 || flag&fsx.O_RDWR != 0 {
 		wantPerm |= 0200
@@ -56,6 +51,7 @@ func (f *file) open(path string, flag int) (fsx.File, error) {
 
 	handle := &fileHandle{
 		file: f,
+		fsys: fsys,
 		path: path,
 		flag: flag,
 		buf:  f.content,
@@ -88,6 +84,7 @@ func (f *file) open(path string, flag int) (fsx.File, error) {
 
 type fileHandle struct {
 	*file
+	fsys                       *memfs
 	path                       string
 	readable, writable, append bool
 	flag                       int
@@ -103,7 +100,7 @@ func min(a, b int) int {
 }
 
 func (f *fileHandle) Stat() (fs.FileInfo, error) {
-	return f.file.stat(f.path), nil
+	return f.file.stat(f.fsys, f.path)
 }
 
 func (f *fileHandle) Read(buf []byte) (int, error) {
