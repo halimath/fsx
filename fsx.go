@@ -129,7 +129,7 @@ type ReadDirFile interface {
 
 // --
 
-// LinkFS defines an interface for filesystem implementations that support lins
+// LinkFS defines an interface for filesystem implementations that support links
 // (both hardlinks and symlinks).
 //
 // The functions defined by LinkFS are modeled after the link functions provided
