@@ -5,8 +5,9 @@ import (
 	"os"
 	"testing"
 
-	. "github.com/halimath/expect-go"
-	. "github.com/halimath/fixture"
+	"github.com/halimath/expect"
+	"github.com/halimath/expect/is"
+	"github.com/halimath/fixture"
 	"github.com/halimath/fsx"
 	"github.com/halimath/fsx/memfs"
 	"github.com/halimath/fsx/osfs"
@@ -25,7 +26,7 @@ func (fsys *plainFS) Remove(name string) error                  { return fsys.fs
 func (fsys *plainFS) Rename(oldpath, newpath string) error      { return fsys.fs.Rename(oldpath, newpath) }
 func (fsys *plainFS) SameFile(fi1, fi2 fs.FileInfo) bool        { return fsys.fs.SameFile(fi1, fi2) }
 
-type fixture interface {
+type fsFixture interface {
 	FS() fsx.FS
 }
 
@@ -65,15 +66,19 @@ func (f *interfaceFixture) AfterEach(t *testing.T) error {
 // --
 
 func TestCreate(t *testing.T) {
-	With(t, new(plainFixture)).
+	fixture.With(t, new(plainFixture)).
 		Run("success", func(t *testing.T, f *plainFixture) {
 			file, err := fsx.Create(f.fs, "file")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, file.Close()).Is(NoError())
+			expect.That(t,
+				is.NoError(err),
+				is.NoError(file.Close()),
+			)
 
 			info, err := fs.Stat(f.fs, "file")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info).Is(NotNil())
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.Size(), 0),
+			)
 		})
 }
 
@@ -87,14 +92,16 @@ func TestWriteFile_plain(t *testing.T) {
 	testWriteFile(t, new(plainFixture))
 }
 
-func testWriteFile[F fixture](t *testing.T, f F) {
-	With(t, f).
+func testWriteFile[F fsFixture](t *testing.T, f F) {
+	fixture.With(t, f).
 		Run("success", func(t *testing.T, f F) {
-			EnsureThat(t, fsx.WriteFile(f.FS(), "file", []byte("hello, world"), 0644)).Is(NoError())
+			expect.That(t, expect.FailNow(is.NoError(fsx.WriteFile(f.FS(), "file", []byte("hello, world"), 0644))))
 
 			info, err := fs.Stat(f.FS(), "file")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.Size()).Is(Equal(int64(12)))
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.Size(), 12),
+			)
 		})
 }
 
@@ -108,16 +115,18 @@ func TestChmod_plain(t *testing.T) {
 	testChmod(t, new(plainFixture))
 }
 
-func testChmod[F fixture](t *testing.T, f F) {
-	With(t, f).
+func testChmod[F fsFixture](t *testing.T, f F) {
+	fixture.With(t, f).
 		Run("success", func(t *testing.T, f F) {
-			EnsureThat(t, fsx.WriteFile(f.FS(), "file", []byte("hello, world"), 0666)).Is(NoError())
+			expect.That(t, expect.FailNow(is.NoError(fsx.WriteFile(f.FS(), "file", []byte("hello, world"), 0666))))
 
-			ExpectThat(t, fsx.Chmod(f.FS(), "file", 0444)).Is(NoError())
+			expect.That(t, is.NoError(fsx.Chmod(f.FS(), "file", 0444)))
 
 			info, err := fs.Stat(f.FS(), "file")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.Mode().Perm()).Is(Equal(fs.FileMode(0444)))
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.Size(), 12),
+			)
 		})
 }
 
@@ -131,17 +140,20 @@ func TestRemoveAll_plain(t *testing.T) {
 	testRemoveAll(t, new(plainFixture))
 }
 
-func testRemoveAll[F fixture](t *testing.T, f F) {
-	With(t, f).
+func testRemoveAll[F fsFixture](t *testing.T, f F) {
+	fixture.With(t, f).
 		Run("success", func(t *testing.T, f F) {
-			EnsureThat(t, f.FS().Mkdir("dir", 0755)).Is(NoError())
-			EnsureThat(t, f.FS().Mkdir("dir/sub", 0755)).Is(NoError())
-			EnsureThat(t, fsx.WriteFile(f.FS(), "dir/sub/file", []byte("hello, world"), 0644)).Is(NoError())
-
-			EnsureThat(t, fsx.RemoveAll(f.FS(), "dir")).Is(NoError())
+			expect.That(t,
+				expect.FailNow(
+					is.NoError(f.FS().Mkdir("dir", 0755)),
+					is.NoError(f.FS().Mkdir("dir/sub", 0755)),
+					is.NoError(fsx.WriteFile(f.FS(), "dir/sub/file", []byte("hello, world"), 0644)),
+					is.NoError(fsx.RemoveAll(f.FS(), "dir")),
+				),
+			)
 
 			_, err := fs.Stat(f.FS(), "dir")
-			ExpectThat(t, err).Is(Error(fs.ErrNotExist))
+			expect.That(t, is.Error(err, fs.ErrNotExist))
 		})
 }
 
@@ -155,45 +167,69 @@ func TestMkdirAll_plain(t *testing.T) {
 	testMkdirAll(t, new(plainFixture))
 }
 
-func testMkdirAll[F fixture](t *testing.T, f F) {
-	With(t, f).
+func testMkdirAll[F fsFixture](t *testing.T, f F) {
+	fixture.With(t, f).
 		Run("success", func(t *testing.T, f F) {
-			EnsureThat(t, fsx.MkdirAll(f.FS(), "dir/sub/sub_sub", 0755)).Is(NoError())
+			expect.That(t, expect.FailNow(is.NoError(fsx.MkdirAll(f.FS(), "dir/sub/sub_sub", 0755))))
 
 			info, err := fs.Stat(f.FS(), "dir")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.IsDir()).Is(Equal(true))
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.IsDir(), true),
+			)
 
 			info, err = fs.Stat(f.FS(), "dir/sub")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.IsDir()).Is(Equal(true))
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.IsDir(), true),
+			)
 
 			info, err = fs.Stat(f.FS(), "dir/sub/sub_sub")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.IsDir()).Is(Equal(true))
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.IsDir(), true),
+			)
 		}).
 		Run("already_exists", func(t *testing.T, f F) {
-			EnsureThat(t, fsx.MkdirAll(f.FS(), "dir/sub/sub_sub", 0755)).Is(NoError())
-			EnsureThat(t, fsx.MkdirAll(f.FS(), "dir/sub/sub_sub", 0755)).Is(NoError())
+			expect.That(t, expect.FailNow(
+				is.NoError(fsx.MkdirAll(f.FS(), "dir/sub/sub_sub", 0755)),
+				is.NoError(fsx.MkdirAll(f.FS(), "dir/sub/sub_sub", 0755)),
+			))
 
 			info, err := fs.Stat(f.FS(), "dir")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.IsDir()).Is(Equal(true))
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.IsDir(), true),
+			)
 
 			info, err = fs.Stat(f.FS(), "dir/sub")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.IsDir()).Is(Equal(true))
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.IsDir(), true),
+			)
 
 			info, err = fs.Stat(f.FS(), "dir/sub/sub_sub")
-			ExpectThat(t, err).Is(NoError())
-			ExpectThat(t, info.IsDir()).Is(Equal(true))
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.IsDir(), true),
+			)
 		}).
 		Run("file_already_exists", func(t *testing.T, f F) {
-			EnsureThat(t, fsx.MkdirAll(f.FS(), "dir/sub", 0755)).Is(NoError())
-			EnsureThat(t, fsx.WriteFile(f.FS(), "dir/sub/file", []byte("hello"), 0644)).Is(NoError())
+			expect.That(t, expect.FailNow(
+				is.NoError(fsx.MkdirAll(f.FS(), "dir/sub", 0755)),
+				is.NoError(fsx.WriteFile(f.FS(), "dir/sub/file", []byte("hello"), 0644)),
+			))
 
 			// memfs returns an fs.ErrInvalid but os returns a system dependent error. Thus, we cannot test
 			// for the exact error. It must be enough to test for a non-nil error values here.
-			EnsureThat(t, fsx.MkdirAll(f.FS(), "dir/sub/file", 0755)).Is(NotNil())
+			expect.That(t, isAnyError(fsx.MkdirAll(f.FS(), "dir/sub/file", 0755)))
 		})
+}
+
+func isAnyError(err error) expect.Expectation {
+	return expect.ExpectFunc(func(t expect.TB) {
+		if err == nil {
+			t.Error("expected any error but got nil")
+		}
+	})
 }

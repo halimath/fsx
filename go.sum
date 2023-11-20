@@ -1,6 +1,4 @@
-github.com/halimath/expect-go v0.0.0-20221119182726-6e9dcdcf577a h1:R3nwbn8EBynjs/eQvp/8mzDt0yxTf/5kZPqHGEn6bXk=
-github.com/halimath/expect-go v0.0.0-20221119182726-6e9dcdcf577a/go.mod h1:dPhpqW+qRVgNwCJ0ih8AQGbNLayhJiq+3pihyJ0bp2E=
-github.com/halimath/expect-go v0.0.0-20230127172021-61f8c8d83d1f h1:W5dzPjOrom58DLTAEcxGCBdtfWBB4T+ZH7lgKthDKzA=
-github.com/halimath/expect-go v0.0.0-20230127172021-61f8c8d83d1f/go.mod h1:dPhpqW+qRVgNwCJ0ih8AQGbNLayhJiq+3pihyJ0bp2E=
-github.com/halimath/fixture v0.0.0-20221215105116-f87322a1d687 h1:vIHWRLQCjnlmT8lFBNo0s69ynGCN1AKuyxiMeRnyDWU=
-github.com/halimath/fixture v0.0.0-20221215105116-f87322a1d687/go.mod h1:axHE2XMjyZT+HirevPUr5CX3XF09sKU8Otnf9MqGAq0=
+github.com/halimath/expect v0.4.0 h1:MWB7WDtMM325jr9QyNvwUbg9Nlm5LHFsh9tv9ZNCsh0=
+github.com/halimath/expect v0.4.0/go.mod h1:JQW7orDfymPLKrvFgWl12qL2Q6bBXbRDg1S1PMgRI9A=
+github.com/halimath/fixture v0.1.0 h1:aVLDQv6OtJUQw7aSBtCdo+DWiOXZTLq+SIW5HYMTY/g=
+github.com/halimath/fixture v0.1.0/go.mod h1:axHE2XMjyZT+HirevPUr5CX3XF09sKU8Otnf9MqGAq0=
