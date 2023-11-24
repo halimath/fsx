@@ -4,10 +4,11 @@ import (
 	"io/fs"
 	"testing"
 
+	"github.com/halimath/expect/is"
 	"github.com/halimath/fsx"
 
-	. "github.com/halimath/expect-go"
-	. "github.com/halimath/fixture"
+	"github.com/halimath/expect"
+	"github.com/halimath/fixture"
 )
 
 func TestLsplit(t *testing.T) {
@@ -24,8 +25,10 @@ func TestLsplit(t *testing.T) {
 
 	for _, test := range tests {
 		d, r := lsplit(test.in)
-		ExpectThat(t, d).Is(Equal(test.d))
-		ExpectThat(t, r).Is(Equal(test.r))
+		expect.That(t,
+			is.EqualTo(d, test.d),
+			is.EqualTo(r, test.r),
+		)
 	}
 }
 
@@ -46,8 +49,10 @@ func TestDir_find(t *testing.T) {
 		},
 	}
 
-	ExpectThat(t, d.find("some/nested/file")).Is(Equal(f))
-	ExpectThat(t, d.find("some/nested/file/subfile")).Is(Nil())
+	expect.That(t,
+		is.EqualTo(d.find("some/nested/file"), entry(f)),
+		is.EqualTo(d.find("some/nested/file/subfile"), nil),
+	)
 }
 
 func must[T any](t T, err error) T {
@@ -81,37 +86,37 @@ func TestDirHandle_open(t *testing.T) {
 	t.Run("O_RDONLY success", func(t *testing.T) {
 		d := newDir(0400)
 		_, err := d.open(nil, "dir", fsx.O_RDONLY)
-		ExpectThat(t, err).Is(NoError())
+		expect.That(t, is.NoError(err))
 	})
 
 	t.Run("O_RDONLY failure", func(t *testing.T) {
 		d := newDir(0000)
 		_, err := d.open(nil, "dir", fsx.O_RDONLY)
-		ExpectThat(t, err).Is(Error(fs.ErrPermission))
+		expect.That(t, is.Error(err, fs.ErrPermission))
 	})
 
 	t.Run("O_WRONLY success", func(t *testing.T) {
 		d := newDir(0600)
 		_, err := d.open(nil, "dir", fsx.O_WRONLY)
-		ExpectThat(t, err).Is(NoError())
+		expect.That(t, is.NoError(err))
 	})
 
 	t.Run("O_WRONLY failure", func(t *testing.T) {
 		d := newDir(0400)
 		_, err := d.open(nil, "dir", fsx.O_WRONLY)
-		ExpectThat(t, err).Is(Error(fs.ErrPermission))
+		expect.That(t, is.Error(err, fs.ErrPermission))
 	})
 
 	t.Run("O_RDWR success", func(t *testing.T) {
 		d := newDir(0600)
 		_, err := d.open(nil, "dir", fsx.O_RDWR)
-		ExpectThat(t, err).Is(NoError())
+		expect.That(t, is.NoError(err))
 	})
 
 	t.Run("O_RDWR failure", func(t *testing.T) {
 		d := newDir(0000)
 		_, err := d.open(nil, "dir", fsx.O_RDWR)
-		ExpectThat(t, err).Is(Error(fs.ErrPermission))
+		expect.That(t, is.Error(err, fs.ErrPermission))
 	})
 }
 
@@ -120,13 +125,15 @@ func TestDirHandle_Stat(t *testing.T) {
 		d := newDir(0777)
 		h := must(d.open(nil, "dir", fsx.O_RDONLY))
 		info, err := h.Stat()
-		ExpectThat(t, err).Is(NoError())
-		ExpectThat(t, info).Is(DeepEqual(&fileInfo{
-			path:    "dir",
-			size:    0,
-			mode:    fs.ModeDir | 0777,
-			modTime: d.modTime,
-		}))
+		expect.That(t,
+			is.NoError(err),
+			is.DeepEqualTo(info.(*fileInfo), &fileInfo{
+				path:    "dir",
+				size:    0,
+				mode:    fs.ModeDir | 0777,
+				modTime: d.modTime,
+			}),
+		)
 	})
 }
 
@@ -137,7 +144,7 @@ func TestDirHandle_Read(t *testing.T) {
 		buf := make([]byte, 0)
 		_, err := h.Read(buf)
 
-		ExpectThat(t, err).Is(Error(ErrIsDirectory))
+		expect.That(t, is.Error(err, ErrIsDirectory))
 	})
 }
 
@@ -148,7 +155,7 @@ func TestDirHandle_Write(t *testing.T) {
 		buf := make([]byte, 0)
 		_, err := h.Write(buf)
 
-		ExpectThat(t, err).Is(Error(ErrIsDirectory))
+		expect.That(t, is.Error(err, ErrIsDirectory))
 	})
 }
 
@@ -156,75 +163,84 @@ func TestDirHandle_Chmod(t *testing.T) {
 	t.Run("O_RDONLY", func(t *testing.T) {
 		d := newDir(0777)
 		h := must(d.open(nil, "dir", fsx.O_RDONLY))
-		ExpectThat(t, h.Chmod(0700)).Is(Error(fs.ErrPermission))
+		expect.That(t, is.Error(h.Chmod(0700), fs.ErrPermission))
 	})
 
 	t.Run("O_WRONLY", func(t *testing.T) {
 		d := newDir(0777)
 		h := must(d.open(nil, "dir", fsx.O_WRONLY))
-		ExpectThat(t, h.Chmod(0700)).Is(NoError())
-		ExpectThat(t, h.Close()).Is(NoError())
-		ExpectThat(t, d.perm).Is(Equal(fs.FileMode(0700)))
+
+		expect.That(t,
+			is.NoError(h.Chmod(0700)),
+			is.NoError(h.Close()),
+			is.EqualTo(d.perm, fs.FileMode(0700)),
+		)
 	})
 }
 
 func TestDirHandle_ReadDir(t *testing.T) {
-	With(t, new(dirFixture)).
+	fixture.With(t, new(dirFixture)).
 		Run("(-1)", func(t *testing.T, d *dirFixture) {
 			e, err := d.h.ReadDir(-1)
-			EnsureThat(t, err).Is(NoError())
-			ExpectThat(t, e).Is(DeepEqual([]fs.DirEntry{
-				&dirEntry{
-					name: "d1",
-					info: must(d.d.children["d1"].stat(nil, "test/d1")),
-				},
-				&dirEntry{
-					name: "d2",
-					info: must(d.d.children["d2"].stat(nil, "test/d2")),
-				},
-				&dirEntry{
-					name: "f1",
-					info: must(d.d.children["f1"].stat(nil, "test/f1")),
-				},
-				&dirEntry{
-					name: "f2",
-					info: must(d.d.children["f2"].stat(nil, "test/f2")),
-				},
-			}))
+			expect.That(t,
+				expect.FailNow(is.NoError(err)),
+				is.DeepEqualTo(e, []fs.DirEntry{
+					&dirEntry{
+						name: "d1",
+						info: must(d.d.children["d1"].stat(nil, "test/d1")),
+					},
+					&dirEntry{
+						name: "d2",
+						info: must(d.d.children["d2"].stat(nil, "test/d2")),
+					},
+					&dirEntry{
+						name: "f1",
+						info: must(d.d.children["f1"].stat(nil, "test/f1")),
+					},
+					&dirEntry{
+						name: "f2",
+						info: must(d.d.children["f2"].stat(nil, "test/f2")),
+					},
+				}),
+			)
 		}).
 		Run("(3)", func(t *testing.T, d *dirFixture) {
 			e, err := d.h.ReadDir(3)
-			EnsureThat(t, err).Is(NoError())
-			ExpectThat(t, e).Is(DeepEqual([]fs.DirEntry{
-				&dirEntry{
-					name: "d1",
-					info: must(d.d.children["d1"].stat(nil, "test/d1")),
-				},
-				&dirEntry{
-					name: "d2",
-					info: must(d.d.children["d2"].stat(nil, "test/d2")),
-				},
-				&dirEntry{
-					name: "f1",
-					info: must(d.d.children["f1"].stat(nil, "test/f1")),
-				},
-			}))
+			expect.That(t,
+				expect.FailNow(is.NoError(err)),
+				is.DeepEqualTo(e, []fs.DirEntry{
+					&dirEntry{
+						name: "d1",
+						info: must(d.d.children["d1"].stat(nil, "test/d1")),
+					},
+					&dirEntry{
+						name: "d2",
+						info: must(d.d.children["d2"].stat(nil, "test/d2")),
+					},
+					&dirEntry{
+						name: "f1",
+						info: must(d.d.children["f1"].stat(nil, "test/f1")),
+					},
+				}),
+			)
 
 			e, err = d.h.ReadDir(3)
-			EnsureThat(t, err).Is(NoError())
-			ExpectThat(t, e).Is(DeepEqual([]fs.DirEntry{
-				&dirEntry{
-					name: "f2",
-					info: must(d.d.children["f2"].stat(nil, "test/f2")),
-				},
-			}))
+			expect.That(t,
+				expect.FailNow(is.NoError(err)),
+				is.DeepEqualTo(e, []fs.DirEntry{
+					&dirEntry{
+						name: "f2",
+						info: must(d.d.children["f2"].stat(nil, "test/f2")),
+					},
+				}),
+			)
 		})
 }
 
 func TestDirHandle_Seek(t *testing.T) {
-	With(t, new(dirFixture)).
+	fixture.With(t, new(dirFixture)).
 		Run("error", func(t *testing.T, d *dirFixture) {
 			_, err := d.h.Seek(1, fsx.SeekWhenceRelativeOrigin)
-			ExpectThat(t, err).Is(Error(ErrIsDirectory))
+			expect.That(t, is.Error(err, ErrIsDirectory))
 		})
 }
