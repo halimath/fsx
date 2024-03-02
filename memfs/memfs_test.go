@@ -13,11 +13,11 @@ import (
 )
 
 type memfsFixture struct {
-	fs fsx.LinkFS
+	fs *memfs
 }
 
 func (f *memfsFixture) BeforeEach(t *testing.T) error {
-	f.fs = New()
+	f.fs = New().(*memfs)
 	return nil
 }
 
@@ -263,6 +263,72 @@ func TestMemfs_Chmod(t *testing.T) {
 			info, err := fs.Stat(f.fs, "file")
 			expect.That(t, expect.FailNow(is.NoError(err)), is.EqualTo(info.Mode(), fs.FileMode(0600)))
 
+		})
+}
+
+func TestMemfs_Chown(t *testing.T) {
+	With(t, new(memfsFixture)).
+		Run("dir", func(t *testing.T, f *memfsFixture) {
+			expect.That(t, expect.FailNow(is.NoError(f.fs.Mkdir("dir", 0777))))
+
+			expect.That(t, expect.FailNow(
+				is.NoError(f.fs.Chown("dir", 1, 1)),
+			))
+
+			info, err := fs.Stat(f.fs, "dir")
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.Sys().(Stat).Uid, 1),
+				is.EqualTo(info.Sys().(Stat).Gid, 1),
+			)
+		}).
+		Run("file", func(t *testing.T, f *memfsFixture) {
+			expect.That(t, expect.FailNow(is.NoError(fsx.WriteFile(f.fs, "file", []byte("hello, world"), 0666))))
+
+			expect.That(t, expect.FailNow(is.NoError(f.fs.Chown("file", 1, 1))))
+
+			info, err := fs.Stat(f.fs, "file")
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.Sys().(Stat).Uid, 1),
+				is.EqualTo(info.Sys().(Stat).Gid, 1),
+			)
+		})
+}
+
+func TestMemfs_Chtimes(t *testing.T) {
+	With(t, new(memfsFixture)).
+		Run("dir", func(t *testing.T, f *memfsFixture) {
+			expect.That(t, expect.FailNow(is.NoError(f.fs.Mkdir("dir", 0777))))
+
+			tim := time.Now().Add(time.Second)
+
+			expect.That(t, expect.FailNow(
+				is.NoError(f.fs.Chtimes("dir", tim, tim)),
+			))
+
+			info, err := fs.Stat(f.fs, "dir")
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.Sys().(Stat).Atime, tim),
+				is.EqualTo(info.Sys().(Stat).Mtime, tim),
+			)
+		}).
+		Run("file", func(t *testing.T, f *memfsFixture) {
+			expect.That(t, expect.FailNow(is.NoError(fsx.WriteFile(f.fs, "file", []byte("hello, world"), 0666))))
+
+			tim := time.Now().Add(time.Second)
+
+			expect.That(t, expect.FailNow(
+				is.NoError(f.fs.Chtimes("file", tim, tim)),
+			))
+
+			info, err := fs.Stat(f.fs, "file")
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(info.Sys().(Stat).Atime, tim),
+				is.EqualTo(info.Sys().(Stat).Mtime, tim),
+			)
 		})
 }
 

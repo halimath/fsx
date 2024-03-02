@@ -17,7 +17,8 @@ func TestFileHandle_open(t *testing.T) {
 		now := time.Now()
 
 		f := file{
-			modTime: now,
+			atime:   now,
+			mtime:   now,
 			perm:    0644,
 			content: []byte{1, 2, 3, 4},
 		}
@@ -33,6 +34,12 @@ func TestFileHandle_open(t *testing.T) {
 				size:    4,
 				mode:    0644,
 				modTime: now,
+				sys: Stat{
+					Uid:   0,
+					Gid:   0,
+					Atime: now,
+					Mtime: now,
+				},
 			})),
 		)
 
@@ -72,7 +79,8 @@ func TestFileHandle_open(t *testing.T) {
 		now := time.Now()
 
 		f := file{
-			modTime: now,
+			atime:   now,
+			mtime:   now,
 			perm:    0644,
 			content: []byte{1, 2, 3, 4},
 		}
@@ -88,6 +96,12 @@ func TestFileHandle_open(t *testing.T) {
 				size:    4,
 				mode:    0644,
 				modTime: now,
+				sys: Stat{
+					Uid:   0,
+					Gid:   0,
+					Atime: now,
+					Mtime: now,
+				},
 			})),
 		)
 
@@ -115,7 +129,7 @@ func TestFileHandle_open(t *testing.T) {
 		now := time.Now()
 
 		f := file{
-			modTime: now,
+			mtime:   now,
 			perm:    0644,
 			content: []byte{1, 2, 3, 4},
 		}
@@ -145,7 +159,7 @@ func TestFileHandle_open(t *testing.T) {
 		now := time.Now()
 
 		f := file{
-			modTime: now,
+			mtime:   now,
 			perm:    0644,
 			content: []byte{1, 2, 3, 4},
 		}

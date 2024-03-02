@@ -8,11 +8,26 @@ import (
 	"github.com/halimath/fsx"
 )
 
+// Stat defines a structure that is returned from calls to fs.FileInfo.Sys()
+// for all elements contained in a memfs.
+type Stat struct {
+	// The owners UID.
+	Uid int
+	// The owners GID.
+	Gid int
+	// The time the element was last accessed
+	Atime time.Time
+	// The time the element was last modified. This is identical to the value
+	// returned from fs.FileInfo.ModTime().
+	Mtime time.Time
+}
+
 type fileInfo struct {
 	path    string
 	size    int64
 	mode    fs.FileMode
 	modTime time.Time
+	sys     Stat
 }
 
 func (i *fileInfo) Name() string       { return path.Base(i.path) }
@@ -20,7 +35,7 @@ func (i *fileInfo) Size() int64        { return i.size }
 func (i *fileInfo) Mode() fs.FileMode  { return i.mode }
 func (i *fileInfo) ModTime() time.Time { return i.modTime }
 func (i *fileInfo) IsDir() bool        { return i.mode.IsDir() }
-func (i *fileInfo) Sys() any           { return nil }
+func (i *fileInfo) Sys() any           { return i.sys }
 
 // --
 
@@ -32,6 +47,10 @@ type entry interface {
 
 	stat(fsys *memfs, path string) (fs.FileInfo, error)
 	open(fsys *memfs, path string, flag int) (fsx.File, error)
+
+	chmod(fsys *memfs, mode fs.FileMode) error
+	chown(fsys *memfs, uid, gid int) error
+	chtimes(fsys *memfs, atime, mtime time.Time) error
 }
 
 // --
@@ -293,6 +312,60 @@ func (fsys *memfs) SameFile(fi1, fi2 fs.FileInfo) bool {
 	}
 
 	return fix1.path == fix2.path
+}
+
+// Chmod changes the mode of the named file to mode. This operation reflects
+// os.Chmod.
+func (fsys *memfs) Chmod(name string, mode fs.FileMode) error {
+	e := fsys.root.find(name)
+	if e == nil {
+		return &fs.PathError{
+			Op:   "Chmod",
+			Path: name,
+			Err:  fs.ErrNotExist,
+		}
+	}
+
+	e.RLock()
+	defer e.RUnlock()
+
+	return e.chmod(fsys, mode)
+}
+
+// Chown changes ownership of the named file to the numeric values given
+// as uid and gid.
+func (fsys *memfs) Chown(name string, uid, gid int) error {
+	e := fsys.root.find(name)
+	if e == nil {
+		return &fs.PathError{
+			Op:   "Chown",
+			Path: name,
+			Err:  fs.ErrNotExist,
+		}
+	}
+
+	e.RLock()
+	defer e.RUnlock()
+
+	return e.chown(fsys, uid, gid)
+}
+
+// Chtimes changes the access and modification time of the named file. A
+// zero value for either atime of mtime causes these values to be kept.
+func (fsys *memfs) Chtimes(name string, atime time.Time, mtime time.Time) error {
+	e := fsys.root.find(name)
+	if e == nil {
+		return &fs.PathError{
+			Op:   "Chtimes",
+			Path: name,
+			Err:  fs.ErrNotExist,
+		}
+	}
+
+	e.RLock()
+	defer e.RUnlock()
+
+	return e.chtimes(fsys, atime, mtime)
 }
 
 // -- fsx.LinkFS

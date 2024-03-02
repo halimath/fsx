@@ -131,7 +131,13 @@ func TestDirHandle_Stat(t *testing.T) {
 				path:    "dir",
 				size:    0,
 				mode:    fs.ModeDir | 0777,
-				modTime: d.modTime,
+				modTime: d.mtime,
+				sys: Stat{
+					Uid:   0,
+					Gid:   0,
+					Atime: d.atime,
+					Mtime: d.mtime,
+				},
 			}),
 		)
 	})

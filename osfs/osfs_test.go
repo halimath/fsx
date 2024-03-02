@@ -3,7 +3,9 @@ package osfs
 import (
 	"io/fs"
 	"os"
+	"syscall"
 	"testing"
+	"time"
 
 	"github.com/halimath/expect"
 	"github.com/halimath/expect/is"
@@ -13,7 +15,7 @@ import (
 
 type osfsFixture struct {
 	fixture.TempDirFixture
-	fs fsx.LinkFS
+	fs *osfs
 }
 
 func (f *osfsFixture) BeforeAll(t *testing.T) error {
@@ -21,7 +23,7 @@ func (f *osfsFixture) BeforeAll(t *testing.T) error {
 		return err
 	}
 
-	f.fs = DirFS(f.Path())
+	f.fs = DirFS(f.Path()).(*osfs)
 	return nil
 }
 
@@ -221,6 +223,44 @@ func TestOSFS_Readlink(t *testing.T) {
 			expect.That(t,
 				is.NoError(err),
 				is.EqualTo(got, "f"),
+			)
+		})
+}
+
+func TestOSFS_Chown(t *testing.T) {
+	fixture.With(t, new(osfsFixture)).
+		Run("chown", func(t *testing.T, fix *osfsFixture) {
+			err := fsx.WriteFile(fix.fs, "f", []byte("hello world"), 0666)
+			expect.That(t, is.NoError(err))
+
+			expect.That(t, expect.FailNow(
+				is.NoError(fix.fs.Chown("f", os.Getuid(), os.Getgid())),
+			))
+
+			got, err := fs.Stat(fix.fs, "f")
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(got.Sys().(*syscall.Stat_t).Uid, uint32(os.Getuid())),
+			)
+		})
+}
+
+func TestOSFS_Chtimes(t *testing.T) {
+	fixture.With(t, new(osfsFixture)).
+		Run("chtimes", func(t *testing.T, fix *osfsFixture) {
+			err := fsx.WriteFile(fix.fs, "f", []byte("hello world"), 0666)
+			expect.That(t, is.NoError(err))
+
+			want := time.Now().Add(time.Second).Truncate(time.Second)
+
+			expect.That(t, expect.FailNow(
+				is.NoError(fix.fs.Chtimes("f", want, want)),
+			))
+
+			got, err := fs.Stat(fix.fs, "f")
+			expect.That(t,
+				is.NoError(err),
+				is.EqualTo(got.ModTime(), want),
 			)
 		})
 }

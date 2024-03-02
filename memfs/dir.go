@@ -16,9 +16,10 @@ import (
 type dir struct {
 	sync.RWMutex
 
-	modTime  time.Time
-	perm     fs.FileMode
-	children map[string]entry
+	atime, mtime time.Time
+	uid, gid     int
+	perm         fs.FileMode
+	children     map[string]entry
 }
 
 func (d *dir) stat(fsys *memfs, path string) (fs.FileInfo, error) {
@@ -26,7 +27,13 @@ func (d *dir) stat(fsys *memfs, path string) (fs.FileInfo, error) {
 		path:    path,
 		size:    0,
 		mode:    fs.ModeDir | d.perm,
-		modTime: d.modTime,
+		modTime: d.mtime,
+		sys: Stat{
+			Uid:   d.uid,
+			Gid:   d.gid,
+			Atime: d.atime,
+			Mtime: d.mtime,
+		},
 	}, nil
 }
 
@@ -58,6 +65,37 @@ func (d *dir) open(fsys *memfs, path string, flag int) (fsx.File, error) {
 	}
 
 	return handle, nil
+}
+
+func (d *dir) chmod(fsys *memfs, mode fs.FileMode) error {
+	d.perm = mode
+
+	d.mtime = time.Now()
+	d.atime = d.mtime
+
+	return nil
+}
+
+func (d *dir) chown(fsys *memfs, uid, gid int) error {
+	d.uid = uid
+	d.gid = gid
+
+	d.mtime = time.Now()
+	d.atime = d.mtime
+
+	return nil
+}
+
+func (d *dir) chtimes(fsys *memfs, atime, mtime time.Time) error {
+	if !atime.IsZero() {
+		d.atime = atime
+	}
+
+	if !mtime.IsZero() {
+		d.mtime = mtime
+	}
+
+	return nil
 }
 
 func lsplit(name string) (dir, remainder string) {
@@ -100,8 +138,10 @@ func (d *dir) find(name string) entry {
 }
 
 func newDir(perm fs.FileMode) *dir {
+	now := time.Now()
 	return &dir{
-		modTime:  time.Now(),
+		atime:    now,
+		mtime:    now,
 		perm:     perm,
 		children: make(map[string]entry),
 	}
@@ -150,8 +190,11 @@ func (d *dirHandle) Write([]byte) (int, error) {
 
 func (d *dirHandle) Close() error {
 	if d.writable {
+		d.mtime = time.Now()
+		d.atime = d.mtime
 		d.Unlock()
 	} else {
+		d.atime = time.Now()
 		d.RUnlock()
 	}
 	return nil
@@ -166,10 +209,19 @@ func (d *dirHandle) Chmod(mode fs.FileMode) error {
 		}
 	}
 
-	d.perm = mode
-	d.modTime = time.Now()
+	return d.chmod(d.fsys, mode)
+}
 
-	return nil
+func (d *dirHandle) Chown(uid, gid int) error {
+	if !d.writable {
+		return &fs.PathError{
+			Op:   "Chmod",
+			Path: d.path,
+			Err:  fs.ErrPermission,
+		}
+	}
+
+	return d.chown(d.fsys, uid, gid)
 }
 
 func (d *dirHandle) Seek(offset int64, whence int) (ret int64, err error) {

@@ -15,6 +15,7 @@ import (
 	"os"
 	"path"
 	"strings"
+	"time"
 )
 
 // Flags to OpenFile wrapping those of the underlying system. Not all
@@ -90,6 +91,10 @@ type File interface {
 
 	// Chmod changes the file's permission or mode.
 	Chmod(mode fs.FileMode) error
+
+	// Chown changes ownership of this file to the numeric values uid for owning
+	// user and gid for owning group.
+	Chown(uid, gid int) error
 
 	// Seek sets the offset for the next Read or Write on file to offset,
 	// interpreted according to whence:
@@ -216,6 +221,55 @@ func Chmod(fsys FS, name string, mode fs.FileMode) error {
 	}
 
 	return f.Close()
+}
+
+// --
+
+// ChownFS defines an interface for filesystems that provide optimized support
+// to change a file's ownership.
+type ChownFS interface {
+	FS
+
+	// Chown changes ownership of the named file to the numeric values given
+	// as uid and gid.
+	Chown(name string, uid, gid int) error
+}
+
+// Chown changes ownership of the named file to uid and gid. If fsys stasfies
+// ChownFS its implementation is used. If not, the named file will be opened
+// and have ownership changed.
+func Chown(fsys FS, name string, uid, gid int) error {
+	if f, ok := fsys.(ChownFS); ok {
+		return f.Chown(name, uid, gid)
+	}
+
+	f, err := fsys.OpenFile(name, O_RDWR, 0)
+	if err != nil {
+		return err
+	}
+
+	if err := f.Chown(uid, gid); err != nil {
+		return err
+	}
+
+	return f.Close()
+}
+
+// --
+
+// ChtimesFS defines an interface for filesystems that support changing a
+// file's access and modification time.
+//
+// Note that in contrast to other extension interfaces defined here there is
+// no corresponding package function named Chtimes. If the FS does not support
+// this operation on a filesystem level, you have to open the file on order to
+// update the times.
+type ChtimesFS interface {
+	FS
+
+	// Chtimes changes the access and modification time of the named file. A
+	// zero value for either atime of mtime causes these values to be kept.
+	Chtimes(name string, atime, mtime time.Time) error
 }
 
 // --

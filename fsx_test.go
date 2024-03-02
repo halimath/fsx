@@ -125,8 +125,27 @@ func testChmod[F fsFixture](t *testing.T, f F) {
 			info, err := fs.Stat(f.FS(), "file")
 			expect.That(t,
 				is.NoError(err),
-				is.EqualTo(info.Size(), 12),
+				is.EqualTo(info.Mode(), 0444),
 			)
+		})
+}
+
+// --
+
+func TestChown_interface(t *testing.T) {
+	testChown(t, new(interfaceFixture))
+}
+
+func TestChown_plain(t *testing.T) {
+	testChown(t, new(plainFixture))
+}
+
+func testChown[F fsFixture](t *testing.T, f F) {
+	fixture.With(t, f).
+		Run("success", func(t *testing.T, f F) {
+			expect.That(t, expect.FailNow(is.NoError(fsx.WriteFile(f.FS(), "file", []byte("hello, world"), 0666))))
+
+			expect.That(t, is.NoError(fsx.Chown(f.FS(), "file", os.Getuid(), os.Getgid())))
 		})
 }
 
