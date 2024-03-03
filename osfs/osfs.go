@@ -122,15 +122,6 @@ func (ofs *osfs) SameFile(fi1, fi2 fs.FileInfo) bool {
 	return os.SameFile(fi1, fi2)
 }
 
-func (ofs *osfs) Chown(name string, uid, gid int) error {
-	p, err := ofs.toOSPath(name)
-	if err != nil {
-		return err
-	}
-
-	return os.Chown(p, uid, gid)
-}
-
 func (ofs *osfs) Chtimes(name string, atime, mtime time.Time) error {
 	p, err := ofs.toOSPath(name)
 	if err != nil {

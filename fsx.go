@@ -94,6 +94,10 @@ type File interface {
 
 	// Chown changes ownership of this file to the numeric values uid for owning
 	// user and gid for owning group.
+	//
+	// If changing a file's ownership is not supported this method must return
+	// a nil error. This is to make sure that code using this abstraction remains
+	// portable.
 	Chown(uid, gid int) error
 
 	// Seek sets the offset for the next Read or Write on file to offset,
@@ -232,12 +236,19 @@ type ChownFS interface {
 
 	// Chown changes ownership of the named file to the numeric values given
 	// as uid and gid.
+	//
+	// If changing a file's ownership is not supported this method must return
+	// a nil error. This is to make sure that code using this abstraction remains
+	// portable.
 	Chown(name string, uid, gid int) error
 }
 
 // Chown changes ownership of the named file to uid and gid. If fsys stasfies
 // ChownFS its implementation is used. If not, the named file will be opened
 // and have ownership changed.
+//
+// If changing a file's ownership is not supported by the underlying fsys
+// implementation this function returns nil and effectively becomes a no-op.
 func Chown(fsys FS, name string, uid, gid int) error {
 	if f, ok := fsys.(ChownFS); ok {
 		return f.Chown(name, uid, gid)
