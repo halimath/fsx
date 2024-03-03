@@ -263,7 +263,7 @@ func TestFile_ReadAt(t *testing.T) {
 
 		buf := make([]byte, 2)
 
-		l, err := h.ReadAt(buf, 2)
+		l, err := h.(io.ReaderAt).ReadAt(buf, 2)
 		expect.That(t,
 			is.NoError(err),
 			is.EqualTo(l, 2),
@@ -277,7 +277,7 @@ func TestFile_ReadAt(t *testing.T) {
 
 		buf := make([]byte, 2)
 
-		l, err := h.ReadAt(buf, 5)
+		l, err := h.(io.ReaderAt).ReadAt(buf, 5)
 		expect.That(t,
 			is.NoError(err),
 			is.EqualTo(l, 1),
@@ -291,7 +291,7 @@ func TestFile_ReadAt(t *testing.T) {
 
 		buf := make([]byte, 2)
 
-		_, err := h.ReadAt(buf, 7)
+		_, err := h.(io.ReaderAt).ReadAt(buf, 7)
 		expect.That(t, is.Error(err, io.EOF))
 	})
 }

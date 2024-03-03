@@ -85,6 +85,14 @@ var (
 // and thus provides an extended yet compatible interface. It also composes
 // io.Writer to support a wide range of writing primitives. In addition, a
 // file's permission can be changed with Chmod.
+//
+// It is suggested for implementations to also implement the following interfaces
+// if applicable to improve performance when operating with a File:
+//
+// - io.ReaderAt
+// - io.ReaderFrom
+// - io.WriterAt
+// - io.WriterTo
 type File interface {
 	fs.File
 	io.Writer
@@ -110,30 +118,6 @@ type File interface {
 	// It returns the new offset and an error, if any.
 	// The behavior of Seek on a file opened with O_APPEND is not specified.
 	Seek(offset int64, whence int) (ret int64, err error)
-
-	// ReadAt reads bytes to fill buffer starting at offset. It returns the
-	// number of bytes read and any possible error. If offset is beyond the
-	// file's length that error is io.EOF.
-	// ReadAt does not advance the file's cursor.
-	ReadAt(buffer []byte, offset int64) (n int, err error)
-
-	// -- io.ReaderFrom
-	// func (f *File) ReadFrom(r io.Reader) (n int64, err error)
-
-	// func (f *File) SetDeadline(t time.Time) error
-	// func (f *File) SetReadDeadline(t time.Time) error
-	// func (f *File) SetWriteDeadline(t time.Time) error
-
-	// func (f *File) WriteAt(b []byte, off int64) (n int, err error)
-	// func (f *File) WriteString(s string) (n int, err error)
-
-}
-
-type ReadDirFile interface {
-	File
-	fs.ReadDirFile
-
-	// func (f *File) Readdirnames(n int) (names []string, err error)
 }
 
 // --
