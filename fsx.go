@@ -338,8 +338,24 @@ type MkdirAllFS interface {
 	MkdirAll(path string, perm fs.FileMode) error
 }
 
+// splitAll splits path into all path segments separated by Separator. Example:
+//
+//	splitAll("foo/bar/spam/eggs")
+//
+// results in
+//
+//	[]string{"foo", "bar", "spam", "eggs"}
 func splitAll(path string) []string {
 	return strings.Split(path, string(Separator))
+}
+
+// split works like path.Split but returns dirName without a trailing slash.
+func split(p string) (dirName, fileName string) {
+	dirName, fileName = path.Split(p)
+	if len(dirName) > 0 {
+		dirName = dirName[:len(dirName)-1]
+	}
+	return
 }
 
 // MkdirAll creates a directory named path, along with any necessary parents,
@@ -352,19 +368,24 @@ func splitAll(path string) []string {
 // If fsys statisfies MkdirAllFS the call is simply delegated. Otherwise a
 // default implementation is used.
 func MkdirAll(fsys FS, path string, perm fs.FileMode) error {
+	// If fsys satisfies MkdirAllFS we simply delegate to that method to get
+	// the job done.
 	if f, ok := fsys.(MkdirAllFS); ok {
 		return f.MkdirAll(path, perm)
 	}
 
-	// Check if path already exists
+	// Otherwise, we have to deal with that ourselfs.
+
+	// First, check if path already exists
 	dir, err := fsys.Open(path)
 	if err != nil && !errors.Is(err, fs.ErrNotExist) {
-		// If any error other then "not exists" occurs, abort the process
-		// and return that error
+		// Any error that is _not_ fs.ErrNotExists means that something went
+		// wrong, so we abort here.
 		return err
-
 	}
 
+	// If no error occured a named file already exists. Check if it is a
+	// directory.
 	if err == nil {
 		// Read file info
 		info, err := dir.Stat()
@@ -391,25 +412,15 @@ func MkdirAll(fsys FS, path string, perm fs.FileMode) error {
 	}
 
 	// If we get this far, we know that path does not exist, so we have to
-	// create it.
+	// create it - one directory at a time.
 
-	dirs := splitAll(path)
-	if len(dirs) == 1 {
-		return fsys.Mkdir(path, perm)
-	}
-
-	var toCreate strings.Builder
-
-	for _, dir := range dirs {
-		if toCreate.Len() > 0 {
-			toCreate.WriteRune(Separator)
-		}
-		toCreate.WriteString(dir)
-
-		if err := fsys.Mkdir(toCreate.String(), perm); err != nil {
+	// Split path to get a list of directories to create.
+	parent, _ := split(path)
+	if len(parent) > 0 {
+		if err := MkdirAll(fsys, parent, perm); err != nil {
 			return err
 		}
 	}
 
-	return nil
+	return fsys.Mkdir(path, perm)
 }

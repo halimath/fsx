@@ -21,6 +21,29 @@ func (f *memfsFixture) BeforeEach(t *testing.T) error {
 	return nil
 }
 
+func TestMemfs_MkdirAll(t *testing.T) {
+	With(t, new(memfsFixture)).
+		Run("success", func(t *testing.T, f *memfsFixture) {
+			expect.That(t, expect.FailNow(
+				is.NoError(fsx.MkdirAll(f.fs, "cmd", 0755)),
+				is.NoError(fsx.MkdirAll(f.fs, "internal/tool", 0755)),
+				is.NoError(fsx.MkdirAll(f.fs, "internal/cli", 0755)),
+			))
+
+			_, err := f.fs.Open("cmd")
+			expect.That(t, is.NoError(err))
+
+			_, err = f.fs.Open("internal")
+			expect.That(t, is.NoError(err))
+
+			_, err = f.fs.Open("internal/tool")
+			expect.That(t, is.NoError(err))
+
+			_, err = f.fs.Open("internal/cli")
+			expect.That(t, is.NoError(err))
+		})
+}
+
 func TestMemfs_Mkdir(t *testing.T) {
 	With(t, new(memfsFixture)).
 		Run("success", func(t *testing.T, f *memfsFixture) {
